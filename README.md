@@ -13,15 +13,28 @@ This Python script downloads media files (images, videos, attachments) from a sp
 
 **Installation:**
 
-1.  **Install the required libraries:**
+1.  **Clone the repository:**
+
+    To get started, clone the repository to your local machine:
 
     ```bash
+    git clone https://github.com/Emy69/SimpCityCLI.git
+    ```
+
+2.  **Install the required libraries:**
+
+    Navigate to the project directory and install the dependencies:
+
+    ```bash
+    cd SimpCityCLI
     pip install -r requirements.txt
     ```
 
 **Usage:**
 
 1.  **Run the script from the command line:**
+
+    After installation, you can run the script by using the following command:
 
     ```bash
     python simpcity.py <thread_url>
