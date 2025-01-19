@@ -1,0 +1,4 @@
+aiohttp
+yarl
+aiolimiter
+bs4
