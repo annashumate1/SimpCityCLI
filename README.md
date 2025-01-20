@@ -1,49 +1,84 @@
-# SimpCity Downloader
+# SimpCityCLI (Fork)
 
-This Python script downloads media files (images, videos, attachments) from a specific thread on the SimpCity forum.
+This is a **fork** of the excellent [SimpCityCLI](https://github.com/Emy69/SimpCityCLI) project. The goal of this fork is to add some extra features and quality-of-life improvements for automated downloading from SimpCity.su.
 
-**Features:**
+## Original Repository
 
-*   **Media Download:** Downloads images, videos, and attachments from forum posts.
-*   **Thread Navigation:** Automatically navigates through multiple pages of a thread.
-*   **Login Support:** Supports login using a username/password or an `xf_user` cookie.
-*   **Rate Limiting:** Implements rate limiting to prevent server overload.
-*   **Progress Tracking:** Displays download progress for each file.
-*   **Error Handling:** Includes basic error handling and logging.
+- **Original Author**: [Emy69](https://github.com/Emy69)
+- **Original Repo**: [github.com/Emy69/SimpCityCLI](https://github.com/Emy69/SimpCityCLI)
 
-**Installation:**
+---
 
-1.  **Clone the repository:**
+## What’s New in This Fork?
 
-    To get started, clone the repository to your local machine:
+Below are the major changes I’ve introduced in this fork:
 
-    ```bash
-    git clone https://github.com/Emy69/SimpCityCLI.git
-    ```
+1. **`generate_links` Function & `urls.txt`**  
+   - I added a function `generate_links(base_link, num_pages)` that constructs thread URLs for each page (e.g. `page-1`, `page-2`, etc.).  
+   - The generated links are written to a `urls.txt` file in the root directory of the project.  
+   - Users can specify a base thread URL (like `https://simpcity.su/threads/some-thread.1234`) and the number of pages, and all resulting URLs automatically go into `urls.txt`.
 
-2.  **Install the required libraries:**
+2. **Improved Main Menu Flow**  
+   - **Menu Options**:
+     1. **Generate Links**: Prompts for a base URL and page count, writes them to `urls.txt`.  
+     2. **Download from `urls.txt`**: Reads all URLs from `urls.txt` and downloads them one by one.  
+     3. **Download a Single Link**: For quick single-thread downloads.  
+     4. **Exit**: Terminates the program.  
+   - This means you can generate URLs, then immediately choose to download them without restarting the script.
 
-    Navigate to the project directory and install the dependencies:
+3. **`config.json` for Credentials & Output Directory**  
+   - I introduced a `config.json` that stores:
+     - **Username**  
+     - **Password**  
+     - **Download output directory**  
+   - If `config.json` does not exist, the program prompts you for these details, saves them, and reuses them for all subsequent runs.  
+   - This way, you don’t have to re-enter your login credentials on every run or every page, and the tool can auto-login once per session.
 
-    ```bash
-    cd SimpCityCLI
-    pip install -r requirements.txt
-    ```
+4. **Auto-Login Once**  
+   - It now loads your **username/password** from `config.json` and attempt to log in **once**.  
+   - If you have valid credentials, the code will skip interactive login prompts and avoid repeated login checks for every page.
 
-**Usage:**
+5. **Skipping Pagination When Using Pre-Generated Links**  
+   - If you generate multiple pages manually with `urls.txt`, the code **won’t** also follow the forum’s “next page” link.  
+   - This prevents exceeding your chosen number of pages and avoids downloading the same pages multiple times.  
+   - It accomplishes this with an extra argument `skip_pagination=True` passed to the downloader if its reading from `urls.txt`.
 
-1.  **Run the script from the command line:**
+---
 
-    After installation, you can run the script by using the following command:
+## How to Use (Fork Version)
 
-    ```bash
-    python simpcity.py <thread_url>
-    ```
+1. **Install Requirements**  
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **Run the Script**  
+   ```bash
+   python simpcity.py
+   ```
+3. **Config Setup**  
+   - On first run, if `config.json` is missing, you’ll be asked for:
+     - SimpCity username and password
+     - Desired output directory  
+   - These get saved to `config.json`, which the script will reuse automatically.
 
-    Replace `<thread_url>` with the URL of the SimpCity thread you want to download.
+4. **Menu-Driven Flow**  
+   - **Generate Links**: Choose option **1** to create `urls.txt`.  
+   - **Download Links**: Option **2** reads `urls.txt` and downloads each page.  
+   - **Download Single Thread**: Option **3** if you just want to process a single URL without writing to `urls.txt`.  
+   - **Exit**: Option **4** ends the script.
 
-**Example:**
+---
 
-```bash
-python simpcity.py https://simpcity.su/threads/user/
+## Credits
 
+- **Base Project**: [Emy69/SimpCityCLI](https://github.com/Emy69/SimpCityCLI)  
+- **Fork Maintainer**: Anna/annashumate1
+
+This fork is released under the same license as the original project (check the original repository for license information). Feel free to open issues or pull requests in this fork for any bug fixes or enhancements.
+
+
+
+By using this fork you agree that Anna is beautiful and deserves every ounce of respect you have
+
+
+Everything added was built and tested in Arch Linux btw
