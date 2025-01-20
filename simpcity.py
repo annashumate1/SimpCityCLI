@@ -10,6 +10,46 @@ from aiolimiter import AsyncLimiter
 from bs4 import BeautifulSoup
 import re
 import getpass
+from pathlib import Path
+import json
+
+def load_config() -> dict:
+    """
+    Loads config from config.json if it exists.
+    If not, prompts user for credentials and output folder, then creates config.json.
+    """
+    import os
+    from pathlib import Path
+
+    config_path = Path(__file__).parent / "config.json"
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            try:
+                config = json.load(f)
+                return config
+            except json.JSONDecodeError:
+                pass
+    
+    # If config doesn't exist or is invalid, prompt user for info:
+    print("No valid config.json found. Let's create one.")
+    username = input("Enter SimpCity username: ").strip()
+    password = getpass.getpass("Enter SimpCity password (not shown): ").strip()
+    output_dir = input("Enter the output directory for downloaded files (default: downloads/simpcity): ").strip()
+    if not output_dir:
+        output_dir = "downloads/simpcity"
+
+    config = {
+        "username": username,
+        "password": password,
+        "output_dir": output_dir
+    }
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+    
+    print(f"Config saved to {config_path}")
+    return config
+
+
 
 # Set up logging
 logging.basicConfig(
@@ -19,15 +59,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def generate_links(base_link, num_pages):
+    links = [base_link.rstrip("/")]
+    for page_num in range(2, num_pages + 1):
+        new_link = f"{base_link.rstrip('/')}/page-{page_num}"
+        links.append(new_link)
+    return links
+
+
 class SimpCityDownloader:
-    def __init__(self):
+    def __init__(self, username=None, password=None, download_folder=None):
         self.base_url = URL("https://simpcity.su")
         self.session = None
         self.logged_in = False
         self.login_attempts = 0
         self.request_limiter = AsyncLimiter(10, 1)  # 10 requests per second
-        self.download_path = Path("downloads/simpcity")
+
+        if download_folder:
+            self.download_path = Path(download_folder)
+        else:
+            self.download_path = Path("downloads/simpcity")
         self.download_path.mkdir(parents=True, exist_ok=True)
+
+        self.username = username
+        self.password = password
         
         # Selectors from original crawler
         self.title_selector = "h1[class=p-title-value]"
@@ -53,6 +108,8 @@ class SimpCityDownloader:
     
     async def check_login_required(self, url: str) -> bool:
         """Check if login is required for the given URL"""
+        if self.logged_in:
+            return False
         try:
             async with self.session.get(url) as response:
                 if response.status == 200:
@@ -64,7 +121,14 @@ class SimpCityDownloader:
             return True  # Assume login required on error
     
     async def prompt_and_login(self) -> bool:
-        """Prompt for credentials and attempt login"""
+        """
+        If username/password exist (from config), use them directly.
+        Otherwise, prompt user for login options.
+        """
+        if self.username and self.password:
+            # We already have credentials from config
+            return await self.login(self.username, self.password)
+
         print("\nLogin required for SimpCity")
         print("1. Login with username/password")
         print("2. Login with xf_user cookie")
@@ -89,6 +153,7 @@ class SimpCityDownloader:
         else:
             logger.warning("Continuing without authentication")
             return False
+
     
     async def verify_login(self) -> bool:
         """Verify if we are actually logged in by checking a profile page"""
@@ -360,7 +425,7 @@ class SimpCityDownloader:
             logger.error(f"Error processing post: {str(e)}")
             return []
     
-    async def process_thread(self, url: str) -> None:
+    async def process_thread(self, url: str, skip_pagination: bool = False) -> None:
         """Process a forum thread and download all media"""
         logger.info(f"Starting to process thread: {url}")
         
@@ -370,6 +435,12 @@ class SimpCityDownloader:
         
         thread_url = URL(url)
         current_url = thread_url
+        
+        page_num = 1
+
+        match = re.search(r'/page-(\d+)', str(thread_url))
+        if match:
+            page_num = int(match.group(1))
         
         # Check if login is required
         logger.info("Checking if login is required...")
@@ -393,11 +464,12 @@ class SimpCityDownloader:
         thread_title = re.sub(r'[<>:"/\\|?*]', '_', title_elem.text.strip())
         logger.info(f"Processing thread: {thread_title}")
         
-        page_num = 1
+        
         total_files = 0
         
         while True:
             logger.info(f"Processing page {page_num}")
+    
             soup = await self.get_page(current_url)
             if not soup:
                 logger.error(f"Failed to get page {page_num}")
@@ -424,18 +496,24 @@ class SimpCityDownloader:
                 else:
                     logger.warning(f"No content found in post {post_index}")
             
-            # Check for next page
-            next_page = soup.select_one(self.next_page_selector)
-            if next_page and (href := next_page.get('href')):
-                if href.startswith('/'):
-                    current_url = self.base_url / href[1:]
-                else:
-                    current_url = URL(href)
-                logger.info(f"Moving to page {page_num + 1}: {current_url}")
-                page_num += 1
-            else:
-                logger.info("No more pages found")
+            
+            
+            if skip_pagination:
+                logger.info("Skipping auto-pagination (using pre-generated links).")
                 break
+            else:
+                next_page = soup.select_one(self.next_page_selector)
+                if next_page and (href := next_page.get('href')):
+                    if href.startswith('/'):
+                        current_url = self.base_url / href[1:]
+                    else:
+                        current_url = URL(href)
+                    logger.info(f"Moving to page {page_num + 1}: {current_url}")
+                    page_num += 1
+                else:
+                    logger.info("No more pages found")
+                    break
+
         
         if total_files > 0:
             logger.info(f"Thread processing complete. Downloaded {total_files} files.")
@@ -443,31 +521,110 @@ class SimpCityDownloader:
             logger.warning("No files were downloaded from this thread.")
 
 async def main():
-    if len(sys.argv) != 2:
-        print("Usage: python simpcity.py <thread_url>")
-        print("Example: python simpcity.py https://simpcity.su/threads/thread-title.12345")
-        return
-    
-    url = sys.argv[1]
-    downloader = SimpCityDownloader()
-    
-    try:
-        # Set a timeout for the entire process
-        timeout = 3600  # 1 hour timeout
-        async with asyncio.timeout(timeout):
-            await downloader.init_session()
-            await downloader.process_thread(url)
+    # Load or create config first
+    config = load_config()
+
+    # Then create downloader using config credentials
+    downloader = SimpCityDownloader(
+        username=config.get("username"),
+        password=config.get("password"),
+        download_folder=config.get("output_dir")
+    )
+
+    while True:
+        print("\n=== Main Menu ===")
+        print("1) Generate links (urls.txt)")
+        print("2) Download from all links in urls.txt")
+        print("3) Download a single link")
+        print("4) Exit")
+
+        choice = input("\nEnter your choice (1-4): ").strip()
+        
+        if choice == "1":
+            # Generate URLs
+            base_link = input("Enter base link (e.g. https://simpcity.su/threads/XXXX): ").strip()
+            num_pages = int(input("Enter the number of pages: ").strip())
+
+            from pathlib import Path
+            base_dir = Path(__file__).parent.resolve()
+            urls_file = base_dir / "urls.txt"
+
+            all_links = generate_links(base_link, num_pages)
+            with open(urls_file, "w", encoding="utf-8") as f:
+                for link in all_links:
+                    f.write(link + "\n")
+
+            print(f"\nLinks written to {urls_file}")
+            # DO NOT return or exit; simply continue back to menu
+
+        elif choice == "2":
+            # Download from urls.txt
+            from pathlib import Path
+            base_dir = Path(__file__).parent.resolve()
+            urls_file = base_dir / "urls.txt"
             
-    except asyncio.TimeoutError:
-        logger.error(f"Operation timed out after {timeout} seconds")
-    except KeyboardInterrupt:
-        logger.info("Operation cancelled by user")
-    except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-    finally:
-        logger.info("Cleaning up...")
-        await downloader.close()
-        logger.info("Done!")
+            if not urls_file.exists():
+                print("urls.txt not found! Please generate links first (option 1).")
+                continue
+
+            with open(urls_file, "r", encoding="utf-8") as f:
+                links_to_download = [line.strip() for line in f if line.strip()]
+
+            if not links_to_download:
+                print("urls.txt is empty! Generate links first.")
+                continue
+
+            timeout = 3600  # 1 hour
+            try:
+                async with asyncio.timeout(timeout):
+                    await downloader.init_session()
+                    for link in links_to_download:
+                        await downloader.process_thread(link, skip_pagination=True)
+            except asyncio.TimeoutError:
+                logger.error(f"Operation timed out after {timeout} seconds")
+            finally:
+                logger.info("Cleaning up...")
+                await downloader.close()
+                logger.info("Done!")
+                # Re-create downloader if you plan to keep going:
+                downloader = SimpCityDownloader(
+                    username=config.get("username"),
+                    password=config.get("password"),
+                    download_folder=config.get("output_dir")
+                )
+
+        elif choice == "3":
+            # Download a single link
+            single_url = input("Enter the thread URL to download: ").strip()
+            if not single_url:
+                print("No URL given.")
+                continue
+            
+            timeout = 3600  # 1 hour
+            try:
+                async with asyncio.timeout(timeout):
+                    await downloader.init_session()
+                    await downloader.process_thread(single_url)
+            except asyncio.TimeoutError:
+                logger.error(f"Operation timed out after {timeout} seconds")
+            finally:
+                logger.info("Cleaning up...")
+                await downloader.close()
+                logger.info("Done!")
+                # Re-create downloader if you plan to keep going:
+                downloader = SimpCityDownloader(
+                    username=config.get("username"),
+                    password=config.get("password"),
+                    download_folder=config.get("output_dir")
+                )
+
+        elif choice == "4":
+            print("Exiting.")
+            break
+
+        else:
+            print("Invalid choice. Please try again.")
+
 
 if __name__ == "__main__":
     try:
