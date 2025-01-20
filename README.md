@@ -47,21 +47,30 @@ Below are the major changes I’ve introduced in this fork:
 
 ## How to Use (Fork Version)
 
-1. **Install Requirements**  
+1. **Clone Fork**
+   ```bash
+   git clone https://github.com/annashumate1/SimpCityCLI/
+   ```
+2. **Navigate Into Fork Directory**
+   ```bash
+   cd SimpCityCLI
+   ```
+
+3. **Install Requirements**  
    ```bash
    pip install -r requirements.txt
    ```
-2. **Run the Script**  
+4. **Run the Script**  
    ```bash
    python simpcity.py
    ```
-3. **Config Setup**  
+5. **Config Setup**  
    - On first run, if `config.json` is missing, you’ll be asked for:
      - SimpCity username and password
      - Desired output directory  
    - These get saved to `config.json`, which the script will reuse automatically.
 
-4. **Menu-Driven Flow**  
+6. **Menu-Driven Flow**  
    - **Generate Links**: Choose option **1** to create `urls.txt`.  
    - **Download Links**: Option **2** reads `urls.txt` and downloads each page.  
    - **Download Single Thread**: Option **3** if you just want to process a single URL without writing to `urls.txt`.  
