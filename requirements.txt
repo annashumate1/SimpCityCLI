@@ -1,4 +1,4 @@
 aiohttp
-yarl
 aiolimiter
-bs4
+beautifulsoup4
+yarl
