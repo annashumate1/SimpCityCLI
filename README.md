@@ -72,7 +72,7 @@ Below are the major changes I’ve introduced in this fork:
 ## Credits
 
 - **Base Project**: [Emy69/SimpCityCLI](https://github.com/Emy69/SimpCityCLI)  
-- **Fork Maintainer**: Anna/annashumate1
+- **Fork Maintainer**: [Anna](https://github.com/annashumate1)
 
 This fork is released under the same license as the original project (check the original repository for license information). Feel free to open issues or pull requests in this fork for any bug fixes or enhancements.
 
